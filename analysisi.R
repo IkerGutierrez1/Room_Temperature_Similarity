@@ -1,5 +1,6 @@
 library(dplyr)
 library(zoo)
+library(ggplot2)
 
 #Load functions
 source("functions.R")
@@ -59,6 +60,7 @@ for (i in 1:k){
 
 colors <- c("#4C4C8A", "#6A6A9A", "#7F7FB3", "#A3A3C2", "#B2B2D3", "#C2C2E6")
 #colors <- c("#C45A0D", "#A02020", "#4A90E2", "#4E9F3D", "#D4AC0E", "#8B4513")
+png("outputs/SVD_Spectrum.png", width = 1080, height = 720)
 
 # Crear un barplot
 barplot(Y, beside = TRUE, 
@@ -76,24 +78,53 @@ grid()
 legend("topright",  # Posición de la leyenda (puedes cambiar a "topleft", "bottomright", etc.)
        legend = cols,  # Nombres correspondientes
        fill = colors,
-       cex = 0.7,
-       text.width = 0.6,
+       #cex = 1,
+       #text.width = 0.6,
+       cex = 1.2,  # Aumenta el tamaño del texto
+       text.width = strwidth(max(cols)) * 1.2,  # Aumenta el ancho de la caja
        box.lwd = 0.5,
        bg = "lightgray")  
 
+dev.off()
 
-acf(df_no_time$RoomA.Sensor__room_temperature)
-cpgram(df_no_time$RoomA.Sensor__room_temperature)
-cpgram(df_no_time$RoomB.Sensor__room_temperature)
+#Los pone en graficas separadas estaria bien cambiarlo a todo en 1
+pdf("outputs/cpgrams.pdf")
 
-resultados <- lapply(df_no_time, function(col) {
-  cpgram(col, plot = FALSE)
-})
+for(col in cols){
+  column <- paste0(col,".Sensor__room_temperature")
+  cpgram(df_no_time[[column]])
+}
 
-
+dev.off()
 
 
 
 #Otra forma de calucular
 dfxdfT <- t(as.matrix(df_no_time)) %*% (as.matrix(df_no_time))
 vp <- eigen(dfxdfT) #La raiz de estos correponde con D
+
+
+
+# Inicializa un data.frame vacío para almacenar los datos
+combined_data <- data.frame()
+
+for (col in cols) {
+  column <- paste0(col, ".Sensor__room_temperature")
+  
+  # Agrega los datos al data.frame combinado
+  temp_data <- df_no_time[[column]]
+  combined_data <- rbind(combined_data, data.frame(Temperatura = temp_data, Column = column))
+}
+
+png("outputs/density.png", width = 1080, height = 720)
+
+# Crea el gráfico con todas las curvas
+ggplot(combined_data, aes(x = Temperatura, color = Column)) +
+  geom_density() + 
+  labs(title = "T Density", x = "Temperature", y = "Density") +
+  theme_minimal()
+# Cierra el archivo PDF
+dev.off()
+
+
+
