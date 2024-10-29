@@ -87,15 +87,27 @@ legend("topright",  # Posición de la leyenda (puedes cambiar a "topleft", "bott
 
 dev.off()
 
-#Los pone en graficas separadas estaria bien cambiarlo a todo en 1
+#Cumulative PDF
 pdf("outputs/cpgrams.pdf")
 
 for(col in cols){
   column <- paste0(col,".Sensor__room_temperature")
-  cpgram(df_no_time[[column]])
+  cpgram(df_no_time[[column]],ci.col = "white")
 }
 
 dev.off()
+
+#Cumulative 6 pngs
+for(col in cols){
+  png(filename = paste0("outputs/cumulative/", column, "_cpgram.png"), width = 800, height = 600)
+  
+  column <- paste0(col,".Sensor__room_temperature")
+  cpgram(df_no_time[[column]],ci.col = "white")
+  
+  dev.off()
+}
+
+
 
 
 
