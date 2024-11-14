@@ -1,3 +1,7 @@
+library(dplyr)
+library(zoo)
+library(ggplot2)
+
 load_data <- function(path){
   df <- read.csv2(path)
   

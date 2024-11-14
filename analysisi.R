@@ -1,6 +1,7 @@
 library(dplyr)
 library(zoo)
 library(ggplot2)
+library(tidyr)
 
 #Load functions
 source("functions.R")
@@ -9,11 +10,22 @@ path <- "data/df_RoomT.csv"
 
 df <- load_data(path)
 
-df_no_time <- df[-1,-1]
+df_no_time <- df[-1,-1] #Eliminar columna de NAs
 cols <- names(df_no_time)
-cols <- sub("\\.Sensor.*", "", cols)
+#cols <- sub("\\.Sensor.*", "", cols)
 
-result_SVD <- svd(df_no_time)
+#Test
+X <- as.matrix(df_no_time)
+
+Xt <- t(X)
+
+X_centered <- scale(X, center = TRUE, scale = FALSE)
+X_standar <- scale(X)
+
+media <- attr(X_standar, "scaled:center")
+desviacion_estandar <- attr(X_standar, "scaled:scale")
+
+result_SVD <- svd(X_standar)
 
 
 U <- result_SVD$u #vecotores propios a la izquierda (espacio de observaciones 7391x6)
@@ -26,22 +38,7 @@ m <- ncol(V)
 W <- numeric(m)
 Y <- matrix(0, nrow = k, ncol = m)
 
-for (i in 1:k){
-  wkk <- 0
-  for (j in 1:m) {
-    wkk <- wkk + ((D[j])^2)*(V[i,j])^2
-  }
-  W[i] <- wkk
-}
-
-#Revisar esto
-for (i in 1:k){
-  for (j in 1:m) {
-    ykm <- (((D[j])^2)*((V[i,j])^2))/W[i]
-    Y[i,j] <- ykm
-  }
-}
-
+#Se podira hacer en un solo ciclo probablemente
 for (i in 1:k){
   wkk <- 0
   for (j in 1:m) {
@@ -50,7 +47,7 @@ for (i in 1:k){
   W[i] <- wkk
 }
 
-#Revisar esto
+
 for (i in 1:k){
   for (j in 1:m) {
     ykm <- (((D[j])^1)*((V[i,j])^2))/W[i]
@@ -60,7 +57,8 @@ for (i in 1:k){
 
 colors <- c("#4C4C8A", "#6A6A9A", "#7F7FB3", "#A3A3C2", "#B2B2D3", "#C2C2E6")
 #colors <- c("#C45A0D", "#A02020", "#4A90E2", "#4E9F3D", "#D4AC0E", "#8B4513")
-png("outputs/SVD_Spectrum.png", width = 1080, height = 720)
+#png("outputs/SVD_Spectrum.png", width = 1080, height = 720)
+png("SVD_Spectrum.png", width = 1080, height = 720)
 
 # Crear un barplot
 barplot(Y, beside = TRUE, 
@@ -139,4 +137,212 @@ ggplot(combined_data, aes(x = Temperatura, color = Column)) +
 dev.off()
 
 
+
+
+#Reconstruct original
+#Los 6 componentes principales (Los dos metodos tienen que ser lo mismo)
+k <- 1
+S <- diag(D)
+Sk <- S[1:k,1:k]
+Uk <- U[,1:k]
+principal <- Uk%*%Sk #Si k = 1 no funciona multiplicar un escalar  (componente principal)
+principal <- Uk*Sk
+
+Vk <- t(V)[1:k,]
+Xk <- as.matrix(principal)%*%Vk 
+
+#Linea solo si no se ha estandarizado al principio
+Xk <- Xk*desviacion_estandar+media
+
+
+#Move to dataframe whith timestamps
+Xk_df <- data.frame(Xk)
+names(Xk_df) <- cols
+Xk_df$timestamp <- df$timestamp[-1]
+
+# Añadir una columna para identificar el origen de los datos
+df_graph <- df[-1,]
+
+colnames(df_graph) <- paste("df_",colnames(df_graph), sep = "")
+df_combined <- bind_cols(df_graph, Xk_df)
+
+df_filtered <- df_combined %>%
+  filter(timestamp >= "2023-08-07" & timestamp <= "2023-08-08")
+
+df_filtered$timestamp <- as.POSIXct(df_filtered$timestamp, format = "%Y-%m-%d %H:%M:%S")
+
+
+
+
+
+
+#All plots
+base_save_dir = "outputs/plots/SWD_standarized/"
+is_standarized = TRUE
+is_centered = FALSE
+
+start_date = "2023-08-07"
+end_date = "2023-08-08"
+end_date = "2023-08-14"
+
+date_breaks = "8 hours"
+date_breaks = "4 hours"
+
+plot_type = "daily"
+plot_type = "weakly"
+
+
+for (k in 1:6){
+  save_dir = paste0(base_save_dir,"k=",k,"/")
+  if (!dir.exists(save_dir)){
+    dir.create(save_dir, recursive = TRUE)
+  }
+  S <- diag(D)
+  Sk <- S[1:k,1:k]
+  Uk <- U[,1:k]
+  if (k != 1){
+    principal <- Uk%*%Sk} #Si k = 1 no funciona multiplicar un escalar  (componente principal)}
+  else{
+    principal <- Uk*Sk}
+  
+  Vk <- t(V)[1:k,]
+  Xk <- as.matrix(principal)%*%Vk 
+  
+  #Linea solo si no se ha estandarizado al principio
+  if (is_standarized){
+    Xk <- Xk*desviacion_estandar+media}
+  
+  else if(is_centered){
+    Xk <- Xk + media
+  }
+  
+  Xk_df <- data.frame(Xk)
+  names(Xk_df) <- cols
+  Xk_df$timestamp <- df$timestamp[-1]
+  
+  #No hace falta que se ejecute en cada ciclo
+  df_graph <- df[-1,]
+  
+  colnames(df_graph) <- paste("df_",colnames(df_graph), sep = "")
+  df_combined <- bind_cols(df_graph, Xk_df)
+  
+  df_filtered <- df_combined %>%
+    filter(timestamp >= start_date & timestamp <= end_date)
+  
+  df_filtered$timestamp <- as.POSIXct(df_filtered$timestamp, format = "%Y-%m-%d %H:%M:%S")
+  
+  #Scatter
+  file_path = paste0(save_dir,"scatter.PNG")
+  p <- ggplot(df_combined, aes(x = df_RoomB.Sensor__room_temperature, y = RoomB.Sensor__room_temperature)) +
+    geom_point() +  # Esta capa agrega los puntos al gráfico
+    labs(
+      x = "Original",
+      y = "SWD"
+    ) +
+    theme_bw()
+  
+  ggsave(file_path, plot = p, width = 8, height = 6, dpi = 300)
+  
+  for (col in names(Xk_df)){
+    if (!grepl("timestamp", col)) {
+      file_path = paste0(save_dir,plot_type,"/")
+      if (!dir.exists(file_path)){
+        dir.create(file_path, recursive = TRUE)
+      }
+      file_path = paste0(file_path,col,".PNG")
+      print(file_path)
+      original_col <- paste0("df_",col)
+  
+      df_long <- df_filtered %>%
+        pivot_longer(cols = c(!!col, !!original_col),
+                     names_to = "Source",
+                     values_to = "Temperature")
+      
+      colors <- c(col = "red", 
+                  original_col = "blue")
+      
+      # Cambiar los nombres de las columnas (que están como strings) por sus valores dinámicos
+      names(colors) <- c(col, original_col)
+      
+      
+      # Crear la gráfica
+      g <- ggplot(df_long, aes(x = timestamp, y = Temperature, color = Source)) + 
+        geom_point(size = 2, alpha = 0.7) +
+        geom_line() +
+        
+        # Título y etiquetas
+        labs(
+          title = col,
+          x = "Timestamp",
+          y = "Temperature (°C)"
+        ) +
+        
+        # Personalización de la apariencia
+        theme_bw() +  # Fondo blanco
+        theme(
+          axis.text.x = element_text(angle = 45, hjust = 1, size = 10),  
+          axis.title = element_text(size = 12, face = "bold"),  
+          plot.title = element_text(size = 14, face = "bold", hjust = 0.5), 
+        ) +
+        
+        # Ajustar las fechas del eje X
+        scale_x_datetime(date_breaks = date_breaks, date_labels = "%Y-%m-%d %H:%M") +
+        
+        # Limitar el eje Y entre 18 y 30
+        ylim(18, 30) +
+        
+        scale_color_manual(values = colors, 
+                           labels = c("Original", "SWD"))
+      
+      
+      # Guardar la gráfica como archivo PNG
+      ggsave(file_path, plot = g, width = 8, height = 6, dpi = 300)
+      
+  }}}
+
+
+
+
+
+#Write errors
+fileConn <- file("results.txt", open = "w")
+
+writeLines("Ciclo\t\tRoom\tMAE\tRMSE", con = fileConn)
+
+is_standarized = FALSE
+
+for (k in 1:6){
+  S <- diag(D)
+  Sk <- S[1:k,1:k]
+  Uk <- U[,1:k]
+  if (k != 1){
+    principal <- Uk%*%Sk} #Si k = 1 no funciona multiplicar un escalar  (componente principal)}
+  else{
+    principal <- Uk*Sk}
+    
+  Vk <- t(V)[1:k,]
+  Xk <- as.matrix(principal)%*%Vk 
+  
+  #Linea solo si no se ha estandarizado al principio
+  if (is_standarized){
+  Xk <- Xk*desviacion_estandar+media}
+
+  err_M <- X-Xk
+  
+  err_Abs <- abs(X-Xk)
+  
+  
+  mae_per_variable <- colMeans(err_Abs)
+  
+  err_M_squared <- err_M^2
+  
+  mse <- colMeans(err_M_squared)
+  rmse <- sqrt(mse)
+  
+  for (j in 1:length(mae_per_variable)){
+    writeLines(paste(k, names(mae_per_variable)[j],mae_per_variable[j],rmse[j],sep="\t"), con = fileConn)
+  }
+  writeLines("", con = fileConn)
+}
+close(fileConn)
 
