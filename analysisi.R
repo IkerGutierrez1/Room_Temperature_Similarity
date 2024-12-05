@@ -12,7 +12,7 @@ df <- load_data(path)
 
 df_no_time <- df[-1,-1] #Eliminar columna de NAs
 cols <- names(df_no_time)
-#cols <- sub("\\.Sensor.*", "", cols)
+cols <- sub("\\.Sensor.*", "", cols)
 
 #Test
 X <- as.matrix(df_no_time)
@@ -25,15 +25,20 @@ X_standar <- scale(X)
 media <- attr(X_standar, "scaled:center")
 desviacion_estandar <- attr(X_standar, "scaled:scale")
 
-result_SVD <- svd(X_standar)
+result_SVD <- svd(X_centered)
 
 
 U <- result_SVD$u #vecotores propios a la izquierda (espacio de observaciones 7391x6)
-D <- result_SVD$d #Valor absoluto de valores propios (valor propio)
+D <- result_SVD$d #Valor absoluto de valores propios (valor propio) #Singular values
 V <- result_SVD$v #vectores propios a la derecha (espacio de vatriables 6x6)
+
+
 
 k <- nrow(V)
 m <- ncol(V)
+
+n <- nrow(U)
+eigen_values <- ((D)^2)/(n-1)
 
 W <- numeric(m)
 Y <- matrix(0, nrow = k, ncol = m)
@@ -55,6 +60,21 @@ for (i in 1:k){
   }
 }
 
+#Mehotd 2
+for (i in 1:k){
+  wkk <- 0
+  for (j in 1:m) {
+    wkk <- wkk + (((D[j])^2))/(n-1)*(V[i,j])^2
+  }
+  W[i] <- wkk
+}
+
+for (i in 1:k){
+  for (j in 1:m) {
+    ykm <- (((((D[j])^2))/(n-1))*((V[i,j])^2))/W[i]
+    Y[i,j] <- ykm
+  }
+}
 colors <- c("#4C4C8A", "#6A6A9A", "#7F7FB3", "#A3A3C2", "#B2B2D3", "#C2C2E6")
 #colors <- c("#C45A0D", "#A02020", "#4A90E2", "#4E9F3D", "#D4AC0E", "#8B4513")
 #png("outputs/SVD_Spectrum.png", width = 1080, height = 720)
@@ -148,17 +168,28 @@ Uk <- U[,1:k]
 principal <- Uk%*%Sk #Si k = 1 no funciona multiplicar un escalar  (componente principal)
 principal <- Uk*Sk
 
+T_build <- as.matrix(principal)+sum(media)/length(media) #Forma de conseguir una temperatura
+
 Vk <- t(V)[1:k,]
 Xk <- as.matrix(principal)%*%Vk 
 
-#Linea solo si no se ha estandarizado al principio
-Xk <- Xk*desviacion_estandar+media
+
+Xk <- Xk+media
 
 
 #Move to dataframe whith timestamps
 Xk_df <- data.frame(Xk)
+Xk_mean <- data.frame(T_build = rowMeans(Xk_df[,1:6]))
 names(Xk_df) <- cols
 Xk_df$timestamp <- df$timestamp[-1]
+Xk_mean$timestamp <- df$timestamp[-1]
+T_build_df <- data.frame(T_build)
+T_build_df$timestamp <- df$timestamp[-1]
+
+#Scatter de Xk_df y X para comparar las reconstrucciones
+#Save dfs
+write.csv2(T_build_df, "k1_T_build.csv", row.names = FALSE)
+
 
 # Añadir una columna para identificar el origen de los datos
 df_graph <- df[-1,]
@@ -346,3 +377,48 @@ for (k in 1:6){
 }
 close(fileConn)
 
+
+colnames <- names(df)
+file_name = "outputs/"
+
+for (col in colnames){
+  
+  x_var <- df[[col]][-1]
+  y_var <- Xk_df[[col]]
+  
+  temp_df <- data.frame(x = x_var, y = y_var)
+  
+  p <- ggplot(temp_df, aes(x = x, y = y)) +
+    geom_point(color = "red", size = 2) +
+    labs(title = "Real vsd PCA",
+         x = "Real measurment",
+         y = "Reconstructed by PCA") +
+    theme_bw() +  # Aplicar tema con fondo blanco
+    theme(
+      plot.background = element_rect(fill = "white"), # Fondo blanco para todo el gráfico
+      panel.grid.major = element_line(color = "grey90"), # Líneas de cuadrícula más suaves
+      panel.grid.minor = element_blank()               # Sin líneas menores
+    )
+  
+  file_name <- paste0("outputs/scatter/scatter_", col, ".png")
+  ggsave(file_name, plot = p, width = 8, height = 8, units = "in", dpi = 100)
+}
+
+
+df_long <- df %>%
+  pivot_longer(cols = -timestamp, names_to = "variable", values_to = "value")
+
+df_filtered <- df_long %>%
+  filter(timestamp >= as.POSIXct("2023-11-13 00:00:00") & timestamp <= as.POSIXct("2023-11-13 23:59:59"))
+
+# Crear el gráfico
+p <- ggplot(df_filtered, aes(x = timestamp, y = value, color = variable)) +
+  geom_point() +  # Usar geom_point() si prefieres puntos en lugar de líneas
+  labs(title = "Valores de las columnas frente a timestamp",
+       x = "Timestamp",
+       y = "Valor") +
+  theme_minimal() +
+  theme(legend.title = element_blank())  # Eliminar el título de la leyenda
+
+# Mostrar el gráfico
+print(p)
