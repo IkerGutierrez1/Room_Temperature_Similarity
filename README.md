@@ -21,7 +21,7 @@ perfomr with SVD.
 
 - outputs contains plots of the analysis
 
-- analysis.R Is the script to perform the analysis. It first reads data and performs the SVD, calculates the coefficients for the spcetrum W and Y and reconstruct the data in Xk_df and T_build_df. From line 77 the scptrum and cumulative plots are ploted. Line 125 is the code corresponding
+- analysis.R Is the script to perform the analysis. It first reads data and performs the SVD, calculates the coefficients for the spcetrum W and Y and reconstruct the data in Xk_df and T_build_df. From line 77 the scptrum and cumulative plots are obtained. Line 125 is the code corresponding
 to the plot of the comparisson from the reconstruction with differnte k for all the rooms. From line 333 onward a different centralization of the data is tried, using the mean from the previous day.
 
 - functions.R Only contains 2 function used fot loading the data.
