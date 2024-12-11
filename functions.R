@@ -1,6 +1,8 @@
 library(dplyr)
 library(zoo)
 library(ggplot2)
+library(tidyr)
+library(lubridate)
 
 load_data <- function(path){
   df <- read.csv2(path)

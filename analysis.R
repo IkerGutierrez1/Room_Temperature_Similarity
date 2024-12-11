@@ -357,7 +357,6 @@ df_mean <- df_mean_prev %>%
   ))
 
 df_mean <- na.omit(df_mean)
-# Crear un nuevo dataframe con las columnas que comienzan con 'previous_day_mean'
 df_daily_mean <- df_mean %>%
   select(starts_with("previous_day_mean"))
 df_mean <- df_mean %>%
@@ -367,16 +366,12 @@ df_mean_no_t <- df_mean[,-1]
 
 
 #Reconstruct data
-Xk <- Xk + df_daily_mean #Wrong colnames are added
-
-# Convertir Xk a data.frame
+Xk <- Xk + df_daily_mean 
 Xk_df <- as.data.frame(Xk)
-
-# Añadir la columna 'timestamp' desde df_mean
 Xk_df$timestamp <- df_mean$timestamp
 
 
-#Pre procesado
+#Pre process
 cols <- names(df_no_time)
 new_col_names <- paste0(cols, "_reconstructed")
 new_col_names <- c(new_col_names,"timestamp")
